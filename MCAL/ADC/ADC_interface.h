@@ -13,6 +13,11 @@
 
 void ADC_voidInit(void);
 
-u16 ADC_u8GetChannelReading(u8 copy_u8Channel);
+u16 ADC_u16StartConversionSynchronous(u8 copy_u8Channel);
+
+u16 ADC_u16StartConversionAsynchronous(u8 copy_u8Channel,  void (*Copy_pvCallBackFunction)(void));
+
+u16 ADC_GetVolt (void);
+
 
 #endif
