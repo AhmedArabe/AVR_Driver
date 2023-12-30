@@ -42,7 +42,8 @@
 #define Timer1_Overflow			6
 #define Timer1_Capture			7
 
-
+#define BUSY						1
+#define NOTBUSY						0
 
 
 #endif
