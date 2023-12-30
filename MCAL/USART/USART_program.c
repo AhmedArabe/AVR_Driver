@@ -9,13 +9,12 @@
 
 
 
-#include "STD_TYPES.h"
-#include "BIT_MATH.h"
+#include "../../LIB/STD_TYPES.h"
+#include "../../LIB/BIT_MATH.h"
 
 #include "USART_interface.h"
 #include "USART_config.h"
 #include "USART_Register.h"
-
 
 void USART_voidInit(void)
 {
@@ -61,7 +60,6 @@ void USART_voidSend_MSG( u8* Copy_Pu8Massage)
 {
 
 	u8 Local_u8Iterator =0;
-	while(GET_BIT(USART_UCSRA_REG , UCSRA_UDRE_BIT) ==0 ) ;
 
 	while(Copy_Pu8Massage [Local_u8Iterator] != '\0')
 	{
@@ -71,7 +69,7 @@ void USART_voidSend_MSG( u8* Copy_Pu8Massage)
 
 	}
 }
-void USART_voidRecive(u8 * Copy_Pu8ReciveData)
+void USART_voidRecive(u8* Copy_Pu8ReciveData)
 {
 
 	while(GET_BIT(USART_UCSRA_REG , UCSRA_RXC_BIT) == 0 );
@@ -82,22 +80,14 @@ void USART_voidRecive(u8 * Copy_Pu8ReciveData)
 	}
 }
 
-void USART_voidRecive_MSG(char* buffer)
+void USART_voidRecive_MSG(u8* buffer)
 {
 	u8 i = 0;
-	u8 receivedChar;
-
-	while(GET_BIT(USART_UCSRA_REG , UCSRA_RXC_BIT) == 0 );
-
-	// USART_voidRecive(&receivedChar);
-
-	while(receivedChar !='0')
+	do
 	{
-		// Store the received character in the buffer
-		buffer[i] = receivedChar;
-		USART_voidRecive(&receivedChar);
+		USART_voidRecive(&buffer[i]);
 		i++;
-	}
+	}while(buffer[i-1]!='\r');
 
 }
 
