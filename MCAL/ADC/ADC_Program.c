@@ -17,6 +17,10 @@
 #include "ADC_Config.h"
 
 
+void (*Global_pvNotificationFunction)(void) = NULL;
+u16 ADC_u16DigitalValue=0;
+u8 ADC_u8BusyState = NOTBUSY;
+
 
 void ADC_voidInit(void)
 {
@@ -40,7 +44,7 @@ void ADC_voidInit(void)
 #endif
 
 
- /*	Set Resolution */
+	/*	Set Resolution */
 #if  Resolution == Eight_bits
 	SET_BIT(ADMUX,ADMUX_ADLAR);
 #elif Resolution == Ten_bits
@@ -51,7 +55,7 @@ void ADC_voidInit(void)
 #endif
 
 
-	 /* Set Prescaller factor */
+	/* Set Prescaller factor */
 #if Prescaler_Factor == factor_2
 	ADCSRA &=0b11111000;
 	ADCSRA |= factor_2 ;
@@ -87,49 +91,38 @@ void ADC_voidInit(void)
 #error "choose the correct option"
 #endif
 
-
-// ADC Polling
-CLR_BIT(ADCSRA, ADCSRA_ADIE);
+	// ADC Polling
+	//CLR_BIT(ADCSRA, ADCSRA_ADIE);
 
 
 }
 
 
-u16 ADC_u8GetChannelReading(u8 copy_u8Channel)
+u16 ADC_u16StartConversionSynchronous(u8 copy_u8Channel)
 {
+	if(ADC_u8BusyState == BUSY)
+	{
+		return 0;
+	}
+	else
+	{
+		ADC_u8BusyState = BUSY;
 
+		/*clear the mux bits in ADMUX Register*/
+		ADMUX &=0b11100000;
+		/*set required channel into the Mux bits */
+		ADMUX|= (copy_u8Channel & 0x1f);
+		/*Start The Conversion*/
+		SET_BIT(ADCSRA,ADCSRA_ADSC);
+		/*Polling (busy waiting) until the conversion complete flag is set*/
+		while(GET_BIT(ADCSRA,ADCSRA_ADIF)==0);
 
-	/*clear the mux bits in ADMUX Register*/
-	ADMUX &=0b11100000;
-
-	/*set required channel into the Mux bits */
-	ADMUX|= (copy_u8Channel & 0x1f);
-
-#if Conversion_Mode == Single_Conversion
-
-	SET_BIT(ADCSRA,ADCSRA_ADSC);
-	/*Polling (busy waiting) until the conversion complete flag is set*/
-	while(GET_BIT(ADCSRA,ADCSRA_ADIF)==0);
-
-	/*Clear conversion complete flag */
-	SET_BIT(ADCSRA,ADCSRA_ADIF);
-
-#elif Conversion_Mode == Auto_Trigger
-
-	/*SET Trigger Source*/
-	SFIOR&=0x00;     // clear register
-	SFIOR = free_running_mode;
-
-	/*start Conversion*/
-	SET_BIT(ADCSRA,ADCSRA_ADSC);
-
-#else
-#error "choose the correct option"
-#endif
-
+		/*Clear conversion complete flag */
+		SET_BIT(ADCSRA,ADCSRA_ADIF);
+		ADC_u8BusyState = NOTBUSY;
 
 #if  Resolution == Eight_bits
-	/*return reading*/
+		/*return reading*/
 		return ADCH;
 #elif Resolution == Ten_bits
 
@@ -138,13 +131,72 @@ u16 ADC_u8GetChannelReading(u8 copy_u8Channel)
 #error "choose the correct option"
 #endif
 
+	}
+}
+
+u16 ADC_u16StartConversionAsynchronous(u8 copy_u8Channel,  void (*Copy_pvCallBackFunction)(void))
+{
+	if(ADC_u8BusyState == BUSY)
+	{
+		return 1;
+
+	}
+	else
+	{
+		ADC_u8BusyState = BUSY;
+		/*clear the mux bits in ADMUX Register*/
+		ADMUX &=0b11100000;
+		/*set required channel into the Mux bits */
+		ADMUX|= (copy_u8Channel & 0x1f);
+		/*Set The CallBack Function*/
+		Global_pvNotificationFunction = Copy_pvCallBackFunction;
+		/*ADC Interrupt Enable*/
+		SET_BIT(ADCSRA, ADCSRA_ADIE);
+		/*Start The Conversion*/
+		SET_BIT(ADCSRA,ADCSRA_ADSC);
+
+		return 0;
+
+	}
 
 }
 
-u16 ADC_GetVolt(u8 copy_u8Channel)
+
+void __vector_16 (void) __attribute__((signal));
+void __vector_16 (void)
 {
-	u32 digital =ADC_u8GetChannelReading(copy_u8Channel);
+
+	/*Check if the Global Pointer To Function points to NULL*/
+	if(Global_pvNotificationFunction != NULL)
+	{
+		/*Read The Result*/
+		ADC_u16DigitalValue= ADCH;
+		/*invoke the call back function*/
+		Global_pvNotificationFunction();
+		/*Set ADC To Be Not Busy*/
+		ADC_u8BusyState = NOTBUSY;
+		/*Disable ADC Interrupt*/
+		CLR_BIT(ADCSRA, ADCSRA_ADIE);
+	}
+	else
+	{
+		/*Do Nothing*/
+	}
+
+}
+
+u16 ADC_GetVolt_Synchronous (u8 copy_u8Channel)
+{
+	u32 digital = ADC_u16StartConversionSynchronous(copy_u8Channel);
 
 	u16 volt=(u16)(((u32)digital*5000UL)/256UL);;
 	return volt;
 }
+
+u16 ADC_GetVolt (void)
+{
+
+	u16 volt=(u16)(((u32)ADC_u16DigitalValue*5000UL)/256UL);;
+	return volt;
+}
+
